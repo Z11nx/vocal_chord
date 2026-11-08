@@ -131,6 +131,35 @@ button, select, input { font: inherit; color: inherit; }
 
 input[type=range] { accent-color: var(--accent); width: 100%; }
 
+/* ---------- say it ---------- */
+.say { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.say-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.say h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.say h3 small { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 4px; }
+.say-examples { display: flex; gap: 6px; flex-wrap: wrap; }
+.say-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#sayText {
+  flex: 1 1 280px; min-width: 0; padding: 10px 14px; border-radius: 10px; font-size: 15px;
+  background: #120f1c; border: 1px solid #3a3058; color: var(--text); outline: none;
+}
+#sayText:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(127, 216, 255, .15); }
+.say-btn {
+  padding: 9px 18px; border-radius: 10px; border: 1px solid #3b5f73; cursor: pointer; font-weight: 600;
+  background: linear-gradient(180deg, #1e3a4a, #142834);
+}
+.say-btn.sing { border-color: #6a4d80; background: linear-gradient(180deg, #33244a, #221830); }
+.say-btn.active { border-color: var(--good); color: var(--good); }
+#sayRateVal { min-width: 38px; color: var(--text); }
+.say-words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; min-height: 8px; }
+.word-chip {
+  display: inline-flex; flex-direction: column; align-items: center; padding: 4px 9px; border-radius: 8px;
+  background: var(--panel2); border: 1px solid var(--line); transition: all .08s;
+}
+.word-chip b { font-size: 14px; font-weight: 600; }
+.word-chip small { font-size: 11px; color: var(--muted); font-family: 'Times New Roman', serif; }
+.word-chip.now { border-color: var(--accent2); background: #3a2232; transform: translateY(-2px); box-shadow: 0 4px 14px -6px var(--accent2); }
+.say-tip { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+
 /* ---------- performance area ---------- */
 .perform {
   grid-area: perform; display: flex; flex-direction: column; gap: 12px;

@@ -327,6 +327,9 @@
       }
       let outerT = RAY_RANGE, outerPor = 0;
       for (const st of outer) {
+        // below the nasal branch the throat is measured to the back wall; the hanging
+        // velum there separates the mouth path from the nose path, it doesn't block it
+        if (st.poly === velumPoly && i <= NOSE_JUNCTION) continue;
         hits.length = 0;
         rayHits(o, d, st.poly, st.closed, hits);
         for (const t of hits) if (t < outerT && t > innerT - 1.2) { outerT = t; outerPor = st.porous; }

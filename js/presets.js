@@ -31,6 +31,9 @@
     s: { label: 's', kind: 'fricative', shape: { tipUp: 0.77, tongueX: 0.7, tongueY: 0.5, jaw: 0.1 }, hold: 0.13, voice: 0 },
     z: { label: 'z', kind: 'fricative', shape: { tipUp: 0.77, tongueX: 0.7, tongueY: 0.5, jaw: 0.1 }, hold: 0.11, voice: 1 },
     sh: { label: 'sh', kind: 'fricative', shape: { tipUp: 0.73, tongueX: 0.8, tongueY: 0.75, lipRound: 0.5, jaw: 0.12 }, hold: 0.14, voice: 0 },
+    zh: { label: 'zh', kind: 'fricative', shape: { tipUp: 0.73, tongueX: 0.8, tongueY: 0.75, lipRound: 0.5, jaw: 0.12 }, hold: 0.1, voice: 1, hidden: true },
+    th: { label: 'th', kind: 'fricative', shape: { tipUp: 0.74, tongueX: 0.95, tongueY: 0.5, jaw: 0.12 }, hold: 0.11, voice: 0 },
+    dh: { label: 'dh', kind: 'fricative', shape: { tipUp: 0.74, tongueX: 0.95, tongueY: 0.5, jaw: 0.12 }, hold: 0.07, voice: 1, hidden: true },
     f: { label: 'f', kind: 'fricative', shape: { lipOpen: 0.2, jaw: 0.3 }, hold: 0.12, voice: 0 },
     v: { label: 'v', kind: 'fricative', shape: { lipOpen: 0.2, jaw: 0.3 }, hold: 0.09, voice: 1 },
     h: { label: 'h', kind: 'aspirate', shape: {}, hold: 0.08, voice: 0 },
@@ -67,46 +70,15 @@
 
   // Step-sequencer songs: [midi offset from voice base (null = rest), syllable]
   const SONGS = {
-    scale: { label: 'Do-re-mi scale', bpm: 100, steps: [[0, 'do'], [2, 're'], [4, 'mi'], [5, 'fa'], [7, 'so'], [9, 'la'], [11, 'ti'], [12, 'do'], [12, 'do'], [11, 'ti'], [9, 'la'], [7, 'so'], [5, 'fa'], [4, 'mi'], [2, 're'], [0, 'do']] },
+    twinkle: { label: 'Twinkle Twinkle (with words)', bpm: 96, steps: [[0, 'twin'], [0, 'kul'], [7, 'twin'], [7, 'kul'], [9, 'lit'], [9, 'tul'], [7, 'star'], [null, ''], [5, 'how'], [5, 'I'], [4, 'won'], [4, 'der'], [2, 'what'], [2, 'you'], [0, 'are'], [null, '']] },
+    scale: { label: 'Do-re-mi scale', bpm: 100, steps: [[0, 'doh'], [2, 'ray'], [4, 'mee'], [5, 'fah'], [7, 'soh'], [9, 'lah'], [11, 'tee'], [12, 'doh'], [12, 'doh'], [11, 'tee'], [9, 'lah'], [7, 'soh'], [5, 'fah'], [4, 'mee'], [2, 'ray'], [0, 'doh']] },
     ode: { label: 'Ode to Joy (Beethoven)', bpm: 120, steps: [[4, 'la'], [4, 'la'], [5, 'la'], [7, 'la'], [7, 'la'], [5, 'la'], [4, 'la'], [2, 'la'], [0, 'la'], [0, 'la'], [2, 'la'], [4, 'la'], [4, 'la'], [2, 'la'], [2, 'aah'], [null, '']] },
     doowop: { label: 'Doo-wop bass line', bpm: 132, steps: [[0, 'doo'], [null, ''], [0, 'doo'], [7, 'wah'], [9, 'doo'], [null, ''], [9, 'doo'], [7, 'wah'], [5, 'doo'], [null, ''], [5, 'doo'], [4, 'wah'], [2, 'bom'], [4, 'bom'], [7, 'bom'], [null, '']] },
     beatbox: { label: 'Mouth percussion', bpm: 96, steps: [[0, 'p'], [null, ''], [0, 'ts'], [null, ''], [0, 'k'], [null, ''], [0, 'ts'], [0, 'p'], [0, 'p'], [null, ''], [0, 'ts'], [null, ''], [0, 'k'], [0, 'ts'], [0, 'ts'], [null, '']] },
     vowels: { label: 'Vowel morph', bpm: 70, steps: [[0, 'ee'], [0, 'eh'], [0, 'ah'], [0, 'oh'], [0, 'oo'], [0, 'oh'], [0, 'ah'], [0, 'eh'], [7, 'ee'], [7, 'eh'], [7, 'ah'], [7, 'oh'], [5, 'oo'], [4, 'mm'], [2, 'nn'], [0, 'ah']] },
   };
 
-  // Parse a sung syllable ("la", "doo", "bom", "ts") into onset, vowel, coda.
-  const VOWEL_SPELL = [
-    ['aah', 'a'], ['ah', 'a'], ['aa', 'ae'], ['ae', 'ae'], ['ee', 'i'], ['eh', 'e'], ['oo', 'u'], ['oh', 'o'],
-    ['uh', 'schwa'], ['ay', 'e'], ['ai', 'e'], ['ow', 'a'], ['a', 'a'], ['e', 'e'], ['i', 'i'], ['o', 'o'], ['u', 'u'],
-  ];
-  const ONSETS = ['sh', 'ng', 'p', 'b', 'm', 't', 'd', 'n', 'k', 'g', 's', 'z', 'f', 'v', 'h', 'l', 'r', 'w', 'y', 'c', 'j'];
-  function parseSyllable(text) {
-    let s = (text || '').toLowerCase().replace(/[^a-z]/g, '');
-    const res = { onset: [], vowel: null, coda: null };
-    if (!s) return res;
-    // onset consonants
-    let guard = 0;
-    while (s && guard++ < 4) {
-      const c = ONSETS.find((o) => s.startsWith(o) && !VOWEL_SPELL.some(([sp]) => s.startsWith(sp)));
-      if (!c) break;
-      res.onset.push(c === 'c' ? 'k' : c === 'j' ? 'd' : c);
-      s = s.slice(c.length);
-    }
-    const v = VOWEL_SPELL.find(([sp]) => s.startsWith(sp));
-    if (v) { res.vowel = v[1]; s = s.slice(v[0].length); }
-    if (s) {
-      const coda = ['ng', 'm', 'n', 's', 'z', 't', 'k', 'p', 'sh'].find((c) => s.startsWith(c));
-      if (coda) res.coda = coda;
-    }
-    // "mm", "nn", "ng" with no vowel = hum
-    if (!res.vowel && res.onset.length) {
-      const last = res.onset[res.onset.length - 1];
-      if (last === 'm' || last === 'n' || last === 'ng') { res.hum = last; }
-    }
-    return res;
-  }
-
-  const api = { VOWELS, CONSONANTS, HARMONY, SCALES, VOICE_TYPES, SONGS, parseSyllable };
+  const api = { VOWELS, CONSONANTS, HARMONY, SCALES, VOICE_TYPES, SONGS };
   root.Presets = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

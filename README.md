@@ -29,6 +29,18 @@ Press **Turn on sound**, then hold a piano key (`A W S E D F T G Y H U J K…`) 
 | Lips | the mute | Close for p / b / m, narrow for f / v, round for oo / oh. |
 | Soft palate | the nasal stop | Lower it to send air through the nose: hums, m, n, ng. |
 
+### Say it: words, spoken or sung
+
+Type anything into the **Say it** box.
+
+- **Speak** (Enter) reads it with natural rhythm. Intonation falls at full stops, rises on questions, and pauses at commas.
+- **Sing** (Shift+Enter) puts one syllable per beat on a melody in the chosen scale and key.
+- Hold a piano key while it talks and you control the pitch yourself, like a talk box.
+
+Each word is shown with its pronunciation, and it lights up as it's spoken. The sequencer steps accept real words too.
+
+`js/speech.js` handles the conversion. It looks words up in a dictionary of common English words, and falls back to spelling rules for everything else (digraphs, silent and "magic" e, r-coloured vowels, suffixes). It then syllabifies the phonemes and plans a timed sequence of articulator targets. That sequence moves the real tongue, lips, jaw and soft palate in the model, so every word you hear is produced by the anatomy on screen.
+
 You can also:
 
 - Use the vowel pads (`1`–`8`) and the consonant pads.
@@ -68,7 +80,7 @@ With the vowel presets, the model lands close to typical adult formants. Here ar
 ```sh
 node tools/formants.js        # formant check for vowels + closure check for consonants
 node tools/stability.js       # runs the full processor offline; checks for NaN/blow-ups
-node tools/render-wav.js x.wav  # renders a sung phrase to a WAV file
+node tools/render-wav.js x.wav "hello there" speak   # speak or sing text into a WAV file
 ```
 
 ## Files
@@ -77,5 +89,6 @@ node tools/render-wav.js x.wav  # renders a sung phrase to a WAV file
 - `js/anatomy.js`: head geometry and airway measurement
 - `js/dsp.js`: voice synthesis (AudioWorklet processor, with a main-thread fallback)
 - `js/render.js`: canvas drawing of the sliced head, airflow and sound waves
+- `js/speech.js`: text → phonemes → timed articulator plan (speaking and singing)
 - `js/presets.js`: vowels, consonant gestures, harmonies, scales and demo songs
 - `js/app.js`: interaction, keyboard, sequencer and audio wiring

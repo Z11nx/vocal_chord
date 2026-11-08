@@ -1,8 +1,9 @@
-// Renders a short sung phrase through the real DSP to a WAV file, smoothing the
-// articulators like the app does. usage: node tools/render-wav.js out.wav
+// Speaks or sings text through the real DSP into a WAV file, smoothing the
+// articulators like the app does.
+// usage: node tools/render-wav.js out.wav "some text" [speak|sing]
 'use strict';
 const fs = require('fs');
-require('../js/anatomy.js'); require('../js/presets.js');
+require('../js/anatomy.js'); require('../js/presets.js'); require('../js/speech.js');
 let Proc;
 globalThis.sampleRate = 44100;
 globalThis.AudioWorkletProcessor = class { constructor() { this.port = { postMessage() {} }; } };
@@ -10,30 +11,29 @@ globalThis.registerProcessor = (n, c) => { Proc = c; };
 require('../js/dsp.js'); globalThis.voiceProcessorModule();
 const { Anatomy, Presets } = globalThis;
 const p = new Proc({ processorOptions: { n: Anatomy.N_TRACT, noseAt: Anatomy.NOSE_JUNCTION } });
-// [time, syllable, midi]
-const score = [[0, 'ma', 50], [0.5, 'li', 53], [1.0, 'pa', 55], [1.5, 'su', 57], [2.0, 'ko', 55], [2.5, 'na', 53], [3.0, 'ee', 50], [3.8, null]];
+const text = process.argv[3] || 'Hello! I am a singing head. How are you today?';
+const mode = process.argv[4] || 'speak';
+const plan = globalThis.Speech.plan(text, { mode, midi: mode === 'speak' ? 49 : 48 });
 const art = Object.assign(Anatomy.defaultState(), Presets.VOWELS.schwa.shape);
-let base = Object.assign({}, art), gestures = [], freq = 220, breath = 0;
 const fps = 120, block = Math.round(sampleRate / fps);
 const out = [];
 const L = new Float32Array(block), R = new Float32Array(block);
-for (let t = 0; t < 4.2; t += block / sampleRate) {
-  for (const ev of score) if (ev[0] <= t && !ev.done) {
-    ev.done = true;
-    if (!ev[1]) { breath = 0; continue; }
-    breath = 0.8; freq = 440 * Math.pow(2, (ev[2] - 69) / 12);
-    const s = Presets.parseSyllable(ev[1]);
-    let tt = t;
-    for (const c of s.onset) { const C = Presets.CONSONANTS[c]; gestures.push({ shape: C.shape, start: tt, end: tt + C.hold, voice: C.voice, vEnd: tt + C.hold + (C.post || 0) }); tt += C.hold; }
-    if (s.vowel) Object.assign(base, Presets.VOWELS[s.vowel].shape, { velum: 0 });
-  }
-  const target = Object.assign({}, base); let voicing = 1, active = false;
-  for (const g of gestures) { if (t >= g.start && t < g.end) { Object.assign(target, g.shape); active = true; } if (t >= g.start && t < g.vEnd && !g.voice) voicing = 0; }
-  const k = 1 - Math.exp(-(block / sampleRate) / (active ? 0.018 : 0.055));
-  for (const key of Object.keys(target)) art[key] += (target[key] - art[key]) * k;
+const keys = ['tongueX', 'tongueY', 'tipUp', 'jaw', 'lipOpen', 'lipRound', 'velum'];
+let idx = 0;
+for (let t = 0; t < plan.duration + 0.3; t += block / sampleRate) {
+  const segs = plan.segments;
+  while (idx < segs.length - 1 && t >= segs[idx].start + segs[idx].dur) idx++;
+  const seg = t < plan.duration ? segs[idx] : { kind: 'pause' };
+  const prog = seg.dur ? Math.min(1, (t - seg.start) / seg.dur) : 0;
+  const target = Object.assign({}, art, seg.shape || {});
+  if (seg.shape2) { const e = Math.min(1, Math.max(0, (prog - 0.3) / 0.6)); for (const k of keys) if (seg.shape2[k] != null) target[k] = seg.shape[k] + (seg.shape2[k] - seg.shape[k]) * e; }
+  const k = 1 - Math.exp(-(block / sampleRate) / (seg.kind === 'vowel' ? 0.03 : 0.016));
+  for (const key of keys) art[key] += (target[key] - art[key]) * k;
+  const voicing = seg.voice === 0 || (seg.voiceDelay && t - seg.start < seg.voiceDelay) ? 0 : 1;
+  const midi = seg.midi != null ? seg.midi + ((seg.midi2 ?? seg.midi) - seg.midi) * prog : 48;
   const g = Anatomy.build(art);
   p.onMessage({ type: 'areas', areas: g.areas, port: g.nasalPort });
-  p.onMessage({ type: 'params', params: { freq, breath, voicing, tension: 0.6, vibDepth: 0.2 } });
+  p.onMessage({ type: 'params', params: { freq: 440 * Math.pow(2, (midi - 69) / 12), breath: seg.kind === 'pause' ? 0 : 0.8, voicing, tension: 0.6, vibDepth: mode === 'speak' ? 0 : 0.2, glide: 0.035, breathiness: seg.boost ? 1 : 0.12 } });
   p.process([], [[L, R]]);
   out.push(...L);
 }

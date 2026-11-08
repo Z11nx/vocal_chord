@@ -24,6 +24,18 @@
   // ---------- static anatomy (world coords) ----------
   const S = (pts, closed = true, seg = 6) => spline(pts.map(([x, y]) => P(x, y)), closed, seg);
 
+  // The cranium is drawn deeper front-to-back than the airway model needs:
+  // points behind the face and above the skull base are pushed backward,
+  // fading out toward the throat so the vocal tract itself is untouched.
+  const CRANIUM_STRETCH = 0.26;
+  function stretch(x, y) {
+    if (x >= 0) return P(x, y);
+    const t = Math.min(1, Math.max(0, (-1.2 - y) / 5));
+    const k = 1 + CRANIUM_STRETCH * t * t * (3 - 2 * t);
+    return P(x * k, y);
+  }
+  const SS = (pts, closed = true, seg = 6) => spline(pts.map(([x, y]) => stretch(x, y)), closed, seg);
+
   // skin silhouette (upper/back part never moves)
   const FACE_TOP = [
     [7.2, -0.45], [7.95, -0.62], [8.5, -1.0], [8.72, -1.6], [8.42, -2.45], [7.45, -4.0], [6.55, -6.0],
@@ -38,7 +50,7 @@
   ];
 
   // cranium arc (forehead → occiput) used for bone & brain
-  const SKULL_ARC = S([
+  const SKULL_ARC = SS([
     [6.1, -9.2], [6.1, -10.6], [5.6, -12.9], [4.2, -15.0], [1.8, -16.6], [-1.5, -17.25], [-5.0, -16.45],
     [-8.0, -14.0], [-9.8, -10.0], [-10.25, -6.0], [-9.65, -3.0], [-8.9, -1.2],
   ], false, 8);
@@ -53,30 +65,30 @@
       return P(p.x + nx * d, p.y + ny * d);
     });
   }
-  const HEAD_CENTER = P(-1.5, -8.5);
+  const HEAD_CENTER = stretch(-1.5, -8.5);
   const SKULL_OUT = offsetPath(SKULL_ARC, 0.55, HEAD_CENTER);
   const SKULL_IN = offsetPath(SKULL_ARC, 1.2, HEAD_CENTER);
   const BRAIN_OUT = offsetPath(SKULL_ARC, 1.4, HEAD_CENTER).slice(2, -6);
 
-  const CRANIAL_BASE = S([
+  const CRANIAL_BASE = SS([
     [5.15, -8.9], [3.6, -7.55], [1.6, -7.0], [0.2, -6.55], [-0.6, -5.5], [-1.35, -5.75], [-2.2, -4.4],
     [-3.3, -2.0], [-2.55, -1.75], [-1.5, -3.2], [-0.2, -4.2], [0.9, -4.75], [2.4, -5.9], [4.0, -6.5],
     [5.3, -7.5], [5.95, -8.2],
   ]);
-  const OCCIPUT = S([
+  const OCCIPUT = SS([
     [-8.9, -1.2], [-7.6, -1.25], [-6.1, -1.5], [-6.0, -2.1], [-7.5, -2.05], [-9.4, -2.5],
   ]);
   const CEREBRUM_BOTTOM = [
-    P(-8.6, -4.7), P(-7.0, -5.5), P(-5.0, -6.5), P(-2.6, -7.3), P(-0.6, -7.0), P(1.6, -7.4), P(3.6, -7.95), P(4.85, -9.1),
+    stretch(-8.6, -4.7), stretch(-7.0, -5.5), stretch(-5.0, -6.5), stretch(-2.6, -7.3), stretch(-0.6, -7.0), stretch(1.6, -7.4), stretch(3.6, -7.95), stretch(4.85, -9.1),
   ];
-  const CEREBELLUM = S([
+  const CEREBELLUM = SS([
     [-8.55, -4.35], [-6.8, -5.15], [-5.0, -6.05], [-3.75, -5.0], [-3.9, -3.6], [-4.6, -2.65], [-6.2, -2.45], [-7.8, -2.9],
   ]);
-  const BRAINSTEM = S([
+  const BRAINSTEM = SS([
     [-2.0, -7.25], [-1.35, -6.4], [-1.55, -5.4], [-2.25, -4.3], [-3.05, -2.4], [-3.75, -1.2], [-4.95, -1.0],
     [-4.65, -2.6], [-3.8, -3.9], [-3.35, -5.4], [-3.2, -6.6],
   ]);
-  const CORPUS = S([[3.0, -9.55], [1.0, -10.9], [-1.8, -11.0], [-3.9, -9.85], [-4.15, -9.25], [-3.3, -9.5], [-1.5, -10.3], [0.9, -10.25], [2.6, -9.25]]);
+  const CORPUS = SS([[3.0, -9.55], [1.0, -10.9], [-1.8, -11.0], [-3.9, -9.85], [-4.15, -9.25], [-3.3, -9.5], [-1.5, -10.3], [0.9, -10.25], [2.6, -9.25]]);
 
   const NASAL_AIR = S([
     [-0.9, -1.45], [-0.2, -1.95], [0.55, -4.3], [2.0, -5.65], [3.6, -6.05], [4.95, -5.75], [5.65, -4.6],
@@ -88,7 +100,7 @@
     S([[1.2, -2.6], [2.4, -3.15], [3.9, -3.0], [4.4, -2.55], [3.4, -2.25], [2.0, -2.2]]),
     S([[1.3, -4.1], [2.1, -4.5], [3.0, -4.35], [2.4, -3.95], [1.6, -3.85]]),
   ];
-  const SPHENOID_SINUS = S([[-1.2, -4.9], [-0.2, -5.25], [0.6, -4.8], [0.55, -3.9], [-0.4, -3.5], [-1.25, -3.9]]);
+  const SPHENOID_SINUS = SS([[-1.2, -4.9], [-0.2, -5.25], [0.6, -4.8], [0.55, -3.9], [-0.4, -3.5], [-1.25, -3.9]]);
   const FRONTAL_SINUS = S([[4.35, -9.7], [5.0, -10.6], [5.45, -10.4], [5.5, -9.4], [5.1, -8.9]]);
   const NASAL_BONE = S([[5.3, -8.0], [5.95, -7.6], [6.45, -6.0], [6.1, -5.85], [5.5, -7.2]]);
 
@@ -163,7 +175,7 @@
         const wig = Math.sin(k * 1.7 + i) * 0.25;
         pts.push(P(cx + Math.cos(a + wig * 0.05) * rr * 1.18 + wig * 0.2, cy + Math.sin(a) * rr * 1.02));
       }
-      SULCI.push(pts);
+      SULCI.push(pts.map((q) => stretch(q.x, q.y)));
     }
   }
 
@@ -171,7 +183,7 @@
     constructor(canvas) {
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
-      this.view = { x0: -11.3, x1: 10.2, y0: -17.9, y1: 13.6 };
+      this.view = { x0: -13.6, x1: 10.2, y0: -17.9, y1: 13.6 };
       this.targetView = Object.assign({}, this.view);
       this.particles = [];
       this.waves = [];
@@ -183,7 +195,7 @@
     setZoom(mode) {
       this.targetView = mode === 'tract'
         ? { x0: -5.6, x1: 9.6, y0: -7.0, y1: 12.2 }
-        : { x0: -11.3, x1: 10.2, y0: -17.9, y1: 13.6 };
+        : { x0: -13.6, x1: 10.2, y0: -17.9, y1: 13.6 };
     }
     resize() {
       const r = this.canvas.getBoundingClientRect();
@@ -285,7 +297,7 @@
       const ll = g.lowerLip, ul = g.upperLip;
       pts.push(ll[5], ll[4], ll[3]);
       pts.push(ul[4], ul[5], ul[6], ul[7], ul[8]);
-      for (const [x, y] of FACE_TOP) pts.push(P(x, y));
+      for (const [x, y] of FACE_TOP) pts.push(stretch(x, y));
       const sil = spline(pts, false, 6);
       sil.push(P(-9.0, 16), P(2.2, 16));
       const path = pathFrom(sil);

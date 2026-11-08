@@ -50,7 +50,7 @@
         <canvas id="spectrum" width="260" height="90" aria-label="Live spectrum"></canvas>
         <div class="vowel-guess">sounds like <b id="vowelGuess">uh</b></div>
       </div>
-      <div class="hint" id="hint">Turn on sound, then <b>hold a piano key</b> (A–K on your keyboard) and <b>drag the glowing handles</b>.</div>
+      <div class="hint" id="hint">Turn on sound, then <b>hold a piano key</b> (A–K), <b>drag the glowing handles</b>, or <b>type words</b> below for it to say.</div>
     </section>
 
     <aside class="rack" aria-label="Instruments">
@@ -116,6 +116,27 @@
     </aside>
 
     <section class="perform" aria-label="Performance">
+      <div class="say">
+        <div class="say-head">
+          <h3>Say it <small>type words and the head speaks or sings them</small></h3>
+          <div class="say-examples">
+            <button class="chip" data-say="Hello! I am a singing head. How are you today?">Hello!</button>
+            <button class="chip" data-say="Twinkle twinkle little star, how I wonder what you are." data-mode="sing">Twinkle ♪</button>
+            <button class="chip" data-say="Is this thing on? Can you hear my voice?">Question?</button>
+            <button class="chip" data-say="Oh what a beautiful day, I love to sing!" data-mode="sing">Beautiful day ♪</button>
+          </div>
+        </div>
+        <div class="say-row">
+          <input type="text" id="sayText" maxlength="240" autocomplete="off" spellcheck="true" aria-label="Words to say" placeholder="Type something to say…" />
+          <button id="speakBtn" class="say-btn" title="Enter">Speak</button>
+          <button id="singBtn" class="say-btn sing" title="Shift+Enter">Sing ♪</button>
+          <button id="sayStop" class="chip" title="Stop">■</button>
+          <label class="mini">Speed <input type="range" id="sayRate" min="0.6" max="1.6" step="0.05" value="1" /><span id="sayRateVal">1.00×</span></label>
+        </div>
+        <div id="sayWords" class="say-words" aria-live="polite"></div>
+        <p class="say-tip">Enter speaks, Shift+Enter sings (a melody in the chosen scale and key). Hold a piano key while it talks to play the tune yourself, like a talk box.</p>
+      </div>
+
       <div class="pads">
         <div class="pad-group">
           <h3>Vowels <small>1–7</small></h3>
@@ -155,6 +176,7 @@
 
   <script src="js/anatomy.js"></script>
   <script src="js/presets.js"></script>
+  <script src="js/speech.js"></script>
   <script src="js/dsp.js"></script>
   <script src="js/render.js"></script>
   <script src="js/app.js"></script>

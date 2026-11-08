@@ -3,7 +3,7 @@
  */
 (function () {
   'use strict';
-  const { VOWELS, CONSONANTS, HARMONY, SCALES, VOICE_TYPES, SONGS, parseSyllable } = Presets;
+  const { VOWELS, CONSONANTS, HARMONY, SCALES, VOICE_TYPES, SONGS } = Presets;
   const { clamp, lerp } = Anatomy.util;
   const $ = (id) => document.getElementById(id);
   const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -121,12 +121,12 @@
     whisper: false, drone: false, noteStart: 0,
     harmony: 'solo', scale: store.get('scale', 'major'), key: store.get('key', 0),
   };
-  const gate = { keys: [], drag: false, seq: false, pulseUntil: 0 };
+  const gate = { keys: [], drag: false, pulseUntil: 0 };
   const view = { labels: window.innerWidth > 700, rays: false, zoom: 'full', hover: null, dragging: null };
   const now = () => performance.now() / 1000;
 
   function isGateOpen(t) {
-    return voice.drone || gate.keys.length > 0 || gate.drag || gate.seq || t < gate.pulseUntil;
+    return voice.drone || gate.keys.length > 0 || gate.drag || t < gate.pulseUntil;
   }
   function setPitch(m, retrigger = true) {
     voice.targetMidi = m;
@@ -151,20 +151,43 @@
   }
   VOWELS.hum = { ipa: 'm̩', label: 'mm', word: 'hum', ref: [], shape: Object.assign({}, VOWELS.schwa.shape, { lipOpen: 0, velum: 1, jaw: 0.15 }) };
 
-  /** sing a syllable such as "la", "doo", "mm", "ts" */
-  function singSyllable(text, dur) {
-    const t = now();
-    const s = parseSyllable(text);
-    let tt = t;
-    if (s.hum) {
-      const hum = s.hum === 'm' ? { lipOpen: 0, velum: 1 } : s.hum === 'n' ? { tipUp: 1, velum: 1, jaw: 0.15 } : { tongueX: 0.2, tongueY: 1, velum: 1 };
-      gestures.push({ sym: s.hum, shape: hum, start: t, end: t + dur * 0.92, voice: 1, voiceEnd: t });
-      return { percussive: false };
+  // ============================================================== speech
+  // A planned utterance (see speech.js) is a list of timed segments, each a
+  // target shape for the articulators plus voicing and pitch.
+  const speech = { plan: null, start: 0, idx: 0, word: -1, onEnd: null };
+  function playPlan(plan, opts = {}) {
+    speech.plan = plan;
+    speech.start = now() + (opts.delay || 0);
+    speech.idx = 0;
+    speech.word = -1;
+    speech.chips = !!opts.chips;
+    voice.noteStart = speech.start;
+    hideHint();
+  }
+  function stopSpeech() {
+    if (!speech.plan) return;
+    // leave the mouth where the last vowel put it
+    const segs = speech.plan.segments;
+    for (let i = segs.length - 1; i >= 0; i--) {
+      if (segs[i].kind === 'vowel') { Object.assign(base, segs[i].shape2 || segs[i].shape); break; }
     }
-    for (const c of s.onset) tt = addGesture(c, tt);
-    if (s.vowel) setVowel(s.vowel);
-    if (s.coda) addGesture(s.coda, t + dur * 0.68, dur * 0.27);
-    return { percussive: !s.vowel, end: tt };
+    base.lipOpen = 1; base.velum = 0; base.tipUp = 0;
+    const wasChips = speech.chips;
+    speech.plan = null;
+    syncSliders();
+    if (wasChips) { highlightWord(-1); setSayButtons(false); }
+  }
+  /** current segment of the utterance, or null */
+  function speechSegment(t) {
+    const p = speech.plan;
+    if (!p) return null;
+    const rel = t - speech.start;
+    if (rel < 0) return null;
+    if (rel >= p.duration) { stopSpeech(); return null; }
+    const segs = p.segments;
+    while (speech.idx < segs.length - 1 && rel >= segs[speech.idx].start + segs[speech.idx].dur) speech.idx++;
+    const seg = segs[speech.idx];
+    return { seg, rel, prog: clamp((rel - seg.start) / seg.dur, 0, 1) };
   }
 
   // =========================================================== animation
@@ -184,7 +207,27 @@
       if (t >= g.start && t < g.end) { Object.assign(target, g.shape); gestureActive = true; if (g.boost) boost = true; }
       if (t >= g.start && t < g.voiceEnd && g.voice === 0) voicing = 0;
     }
-    const tau = gestureActive ? 0.018 : 0.055;
+    // spoken / sung words
+    const sp = speechSegment(t);
+    let speaking = false;
+    if (sp) {
+      const { seg, rel, prog } = sp;
+      speaking = seg.kind !== 'pause';
+      if (seg.shape) {
+        Object.assign(target, seg.shape);
+        if (seg.shape2) {
+          const e = clamp((prog - 0.3) / 0.6, 0, 1);
+          for (const key of ART_KEYS) if (seg.shape2[key] != null) target[key] = lerp(seg.shape[key], seg.shape2[key], e);
+        }
+      }
+      if (seg.voice === 0 || (seg.voiceDelay && rel - seg.start < seg.voiceDelay)) voicing = 0;
+      if (seg.boost) boost = true;
+      // pitch follows the plan unless a piano key is held ("talk box")
+      if (seg.midi != null && !gate.keys.length) voice.targetMidi = lerp(seg.midi, seg.midi2 != null ? seg.midi2 : seg.midi, prog);
+      if (speech.chips && seg.word != null && seg.word !== speech.word) { speech.word = seg.word; highlightWord(seg.word); }
+      gestureActive = true;
+    }
+    const tau = sp ? (sp.seg.kind === 'vowel' ? 0.03 : 0.016) : gestureActive ? 0.018 : 0.055;
     const k = 1 - Math.exp(-dt / tau);
     for (const key of ART_KEYS) {
       const fast = view.dragging && dragKeys[view.dragging] && dragKeys[view.dragging].includes(key);
@@ -194,7 +237,8 @@
     art.larynx = clamp((voice.targetMidi - 40) / 40, 0, 1);
     geom = Anatomy.build(art);
 
-    const open = isGateOpen(t);
+    const open = isGateOpen(t) || speaking;
+    const speakMode = speech.plan && speech.plan.mode === 'speak';
     const vibRamp = clamp((t - voice.noteStart - 0.25) / 0.6, 0, 1);
     if (audio.ready) {
       audio.areas(geom.areas, geom.nasalPort);
@@ -204,9 +248,9 @@
         breath: open ? voice.loudness : 0,
         voicing,
         breathiness: boost ? 1 : voice.breathiness,
-        vibDepth: voice.vibrato * 0.7 * vibRamp,
+        vibDepth: speakMode ? 0 : voice.vibrato * 0.7 * vibRamp,
         vibRate: 5.0 + voice.vibrato * 1.2,
-        glide: 0.004 + Math.pow(voice.glide, 2) * 0.3,
+        glide: speakMode ? 0.035 : speech.plan ? 0.03 : 0.004 + Math.pow(voice.glide, 2) * 0.3,
         volume: 0.85,
       });
     }
@@ -402,6 +446,7 @@
     document.querySelectorAll('[data-vowel]').forEach((b) => b.classList.toggle('on', b.dataset.vowel === k));
   }
   for (const [k, c] of Object.entries(CONSONANTS)) {
+    if (c.hidden) continue;
     const b = document.createElement('button');
     b.className = `pad cons ${c.kind}`;
     b.innerHTML = `<b>${c.label}</b><small>${c.kind}</small>`;
@@ -760,18 +805,10 @@
       const st = pattern[seq.step];
       const nextSt = pattern[(seq.step + 1) % pattern.length];
       document.querySelectorAll('.step').forEach((el, i) => el.classList.toggle('now', i === seq.step));
-      if (st.n == null) { gate.seq = false; }
+      if (st.n == null) { if (speech.plan && !speech.chips) stopSpeech(); }
       else {
-        setPitch(baseMidi() + st.n);
-        const res = singSyllable(st.syl || 'ah', stepDur);
-        gate.seq = true;
-        clearTimeout(seq.offTimer);
-        if (res.percussive) {
-          const len = Math.max(0.06, res.end - now() + 0.06);
-          seq.offTimer = setTimeout(() => { gate.seq = false; }, len * 1000);
-        } else if (nextSt.n == null) {
-          seq.offTimer = setTimeout(() => { gate.seq = false; }, stepDur * 0.9 * 1000);
-        }
+        const plan = Speech.plan(st.syl || 'ah', { mode: 'step', midi: baseMidi() + st.n, stepDur: stepDur * (nextSt.n == null ? 0.85 : 1.02) });
+        playPlan(plan);
       }
       seq.nextTime += stepDur;
       if (t - seq.nextTime > 1) seq.nextTime = t + stepDur; // fell behind (tab hidden)
@@ -782,22 +819,75 @@
     $('seqPlay').setAttribute('aria-pressed', seq.playing);
     $('seqPlay').textContent = seq.playing ? '■ Stop' : '▶ Play';
     if (seq.playing) { ensureAudio(); seq.step = -1; seq.nextTime = now() + 0.05; hideHint(); }
-    else { gate.seq = false; document.querySelectorAll('.step').forEach((el) => el.classList.remove('now')); }
+    else { stopSpeech(); document.querySelectorAll('.step').forEach((el) => el.classList.remove('now')); }
   });
   $('song').addEventListener('change', (e) => loadSong(e.target.value));
   $('bpm').addEventListener('input', (e) => { seq.bpm = +e.target.value; $('bpmVal').textContent = seq.bpm; });
   $('seqClear').addEventListener('click', () => { pattern = pattern.map(() => ({ n: null, syl: '' })); renderSteps(); savePattern(); });
 
+  // ========================================================== say / sing
+  const sayInput = $('sayText');
+  const sayWords = $('sayWords');
+  function sayText(mode) {
+    const text = sayInput.value.trim();
+    if (!text) return;
+    ensureAudio();
+    if (seq.playing) $('seqPlay').click();
+    const vt = VOICE_TYPES[voice.voiceType];
+    const rate = parseFloat($('sayRate').value);
+    const plan = Speech.plan(text, {
+      mode,
+      midi: mode === 'speak' ? vt.base - 3 : baseMidi(),
+      rate, bpm: seq.bpm * rate, scale: SCALES[voice.scale === 'chromatic' ? 'major' : voice.scale], key: voice.key,
+    });
+    renderWordChips(plan.words);
+    store.set('sayText', text);
+    setSayButtons(mode);
+    playPlan(plan, { chips: true, delay: 0.05 });
+  }
+  function renderWordChips(words) {
+    sayWords.innerHTML = '';
+    words.forEach((w) => {
+      const el = document.createElement('span');
+      el.className = 'word-chip';
+      el.innerHTML = `<b></b><small></small>`;
+      el.querySelector('b').textContent = w.word;
+      el.querySelector('small').textContent = '/' + w.ipa + '/';
+      sayWords.appendChild(el);
+    });
+  }
+  function highlightWord(i) {
+    sayWords.querySelectorAll('.word-chip').forEach((el, k) => el.classList.toggle('now', k === i));
+  }
+  function setSayButtons(mode) {
+    $('speakBtn').classList.toggle('active', mode === 'speak');
+    $('singBtn').classList.toggle('active', mode === 'sing');
+  }
+  $('speakBtn').addEventListener('click', () => sayText('speak'));
+  $('singBtn').addEventListener('click', () => sayText('sing'));
+  $('sayStop').addEventListener('click', () => stopSpeech());
+  sayInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); sayText(e.shiftKey ? 'sing' : 'speak'); }
+    e.stopPropagation();
+  });
+  sayInput.addEventListener('keyup', (e) => e.stopPropagation());
+  document.querySelectorAll('[data-say]').forEach((b) => b.addEventListener('click', () => {
+    sayInput.value = b.dataset.say;
+    sayText(b.dataset.mode || 'speak');
+  }));
+  sayInput.value = store.get('sayText', 'Hello! I am a singing head. How are you today?');
+  $('sayRate').addEventListener('input', (e) => { $('sayRateVal').textContent = (+e.target.value).toFixed(2) + '×'; });
+
   // ================================================================ boot
   setPitch(VOICE_TYPES[voice.voiceType].base + 5, false);
   voice.tension = VOICE_TYPES[voice.voiceType].tension; $('tension').value = voice.tension;
   buildPiano();
-  if (!pattern) loadSong('scale'); else { renderSteps(); seq.bpm = +$('bpm').value; }
+  if (!pattern) loadSong('twinkle'); else { renderSteps(); seq.bpm = +$('bpm').value; }
   $('labelsBtn').setAttribute('aria-pressed', view.labels);
   syncSliders();
   refreshVowelPads('schwa');
   requestAnimationFrame(frame);
 
   // expose for debugging / tests
-  window.vocalChord = { art, base, voice, gate, audio, setVowel, singSyllable, renderer, view };
+  window.vocalChord = { art, base, voice, gate, audio, setVowel, renderer, view, speech, sayText };
 })();
