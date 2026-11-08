@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vocal Chord</title>
+  <meta name="description" content="Play the human voice as an orchestra: drag the tongue, lips, jaw, soft palate and vocal folds in a sliced side view of the head to sing." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M8 26c0-6 2-9 2-13a6 6 0 0 1 12 0c0 2-1 3-1 5h3l-2 4h-2c0 2-1 4-4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 9c1.5 1.5 1.5 4.5 0 6M28.5 6.5c3 3 3 8 0 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <div>
+        <h1>Vocal Chord</h1>
+        <p>the orchestra inside your head</p>
+      </div>
+    </div>
+    <div class="top-controls">
+      <label class="mini">Voice
+        <select id="voiceType"></select>
+      </label>
+      <label class="mini">Harmony
+        <select id="harmony"></select>
+      </label>
+      <label class="mini">Room
+        <input type="range" id="reverb" min="0" max="1" step="0.01" value="0.35" />
+      </label>
+      <label class="mini">Volume
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.75" />
+      </label>
+      <button id="power" class="power" aria-pressed="false">
+        <span class="dot"></span><span class="txt">Turn on sound</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="diagram" aria-label="Sliced side view of the head">
+      <canvas id="head"></canvas>
+      <div class="diagram-tools">
+        <button class="chip" id="zoomBtn" title="Zoom (Z)">Zoom to vocal tract</button>
+        <button class="chip" id="labelsBtn" aria-pressed="true" title="Labels (L)">Labels</button>
+        <button class="chip" id="raysBtn" aria-pressed="false" title="Show the airway cross-sections the sound is computed from">Airway x-ray</button>
+      </div>
+      <div class="hud">
+        <div class="note-readout"><span id="noteName">A3</span><small id="noteHz">220 Hz</small></div>
+        <canvas id="spectrum" width="260" height="90" aria-label="Live spectrum"></canvas>
+        <div class="vowel-guess">sounds like <b id="vowelGuess">uh</b></div>
+      </div>
+      <div class="hint" id="hint">Turn on sound, then <b>hold a piano key</b> (A–K on your keyboard) and <b>drag the glowing handles</b>.</div>
+    </section>
+
+    <aside class="rack" aria-label="Instruments">
+      <article class="card" data-inst="lungs">
+        <header><span class="swatch" style="--c:#8affc1"></span><h2>Lungs <em>the bellows</em></h2></header>
+        <p class="desc">Air pressure from below powers everything. More breath = louder.</p>
+        <div class="row">
+          <label>Breath <input type="range" id="loudness" min="0" max="1" step="0.01" value="0.75" /></label>
+        </div>
+        <div class="row toggles">
+          <button class="toggle" id="drone" aria-pressed="false" title="Space">Sustain (Space)</button>
+          <button class="toggle" id="whisper" aria-pressed="false">Whisper</button>
+        </div>
+      </article>
+
+      <article class="card" data-inst="folds">
+        <header><span class="swatch" style="--c:#7fd8ff"></span><h2>Vocal folds <em>the strings</em></h2></header>
+        <div class="folds-wrap">
+          <canvas id="foldsView" width="132" height="132" aria-label="Top-down view of the vocal folds"></canvas>
+          <div class="folds-controls">
+            <label>Tension <input type="range" id="tension" min="0" max="1" step="0.01" value="0.62" /></label>
+            <label>Breathiness <input type="range" id="breathiness" min="0" max="1" step="0.01" value="0.12" /></label>
+            <label>Vibrato <input type="range" id="vibrato" min="0" max="1" step="0.01" value="0.3" /></label>
+            <label>Glide <input type="range" id="glide" min="0" max="1" step="0.01" value="0.2" /></label>
+          </div>
+        </div>
+        <p class="desc">Tense folds = bright and pressed; slack = soft and airy. Drag the folds on the diagram up or down to bend the pitch.</p>
+      </article>
+
+      <article class="card" data-inst="tongue">
+        <header><span class="swatch" style="--c:#ff8a8a"></span><h2>Tongue <em>the slide</em></h2></header>
+        <div class="vowel-pad-wrap">
+          <svg id="vowelPad" viewBox="0 0 220 150" aria-label="Vowel chart: drag to move the tongue">
+            <polygon points="22,14 206,14 206,136 92,136" class="trap" />
+            <line x1="57" y1="75" x2="206" y2="75" class="grid" />
+            <line x1="114" y1="14" x2="149" y2="136" class="grid" />
+            <text x="12" y="10" class="axis">front</text><text x="184" y="10" class="axis">back</text>
+            <g id="vowelPadLabels"></g>
+            <circle id="vowelPadDot" cx="114" cy="75" r="8" />
+          </svg>
+        </div>
+        <div class="row">
+          <label>Tip lift <input type="range" id="tipUp" min="0" max="1" step="0.01" value="0" /></label>
+        </div>
+      </article>
+
+      <article class="card" data-inst="jaw">
+        <header><span class="swatch" style="--c:#ffd66b"></span><h2>Jaw <em>the bell</em></h2></header>
+        <div class="row"><label>Opening <input type="range" id="jaw" min="0" max="1" step="0.01" value="0.3" /></label></div>
+      </article>
+
+      <article class="card" data-inst="lips">
+        <header><span class="swatch" style="--c:#ff7ab8"></span><h2>Lips <em>the mute</em></h2></header>
+        <div class="row"><label>Open <input type="range" id="lipOpen" min="0" max="1" step="0.01" value="1" /></label></div>
+        <div class="row"><label>Round <input type="range" id="lipRound" min="0" max="1" step="0.01" value="0" /></label></div>
+      </article>
+
+      <article class="card" data-inst="velum">
+        <header><span class="swatch" style="--c:#b38cff"></span><h2>Soft palate <em>the nasal stop</em></h2></header>
+        <div class="row"><label>Nasal <input type="range" id="velum" min="0" max="1" step="0.01" value="0" /></label></div>
+        <p class="desc">Lower it to let air through the nose: hums, “m”, “n”, “ng”.</p>
+      </article>
+    </aside>
+
+    <section class="perform" aria-label="Performance">
+      <div class="pads">
+        <div class="pad-group">
+          <h3>Vowels <small>1–7</small></h3>
+          <div id="vowelPads" class="pad-row"></div>
+        </div>
+        <div class="pad-group">
+          <h3>Consonants <small>click to add an onset</small></h3>
+          <div id="consPads" class="pad-row"></div>
+        </div>
+      </div>
+
+      <div class="keys-row">
+        <div class="key-tools">
+          <label class="mini">Scale <select id="scale"></select></label>
+          <label class="mini">Key <select id="keyRoot"></select></label>
+          <div class="octave">
+            <button class="chip" id="octDown" title="Z">−</button>
+            <span id="octLabel">Oct 3</span>
+            <button class="chip" id="octUp" title="X">+</button>
+          </div>
+        </div>
+        <div id="piano" class="piano" aria-label="Piano keyboard"></div>
+      </div>
+
+      <div class="seq">
+        <div class="seq-head">
+          <button id="seqPlay" class="play" aria-pressed="false">▶ Play</button>
+          <label class="mini">Song <select id="song"></select></label>
+          <label class="mini">Tempo <input type="range" id="bpm" min="50" max="180" step="1" value="100" /><span id="bpmVal">100</span></label>
+          <button class="chip" id="seqClear">Clear</button>
+          <span class="seq-help">Each step: a note and a sung syllable (“la”, “doo”, “mm”, “ts”…)</span>
+        </div>
+        <div id="steps" class="steps"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/anatomy.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/dsp.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
